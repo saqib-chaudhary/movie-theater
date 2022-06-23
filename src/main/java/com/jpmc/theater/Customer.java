@@ -1,5 +1,7 @@
 package com.jpmc.theater;
 
+import org.apache.commons.lang3.Validate;
+
 import java.util.Objects;
 
 public class Customer {
@@ -13,9 +15,10 @@ public class Customer {
      * @param id   customer id
      */
     public Customer(String name, String id) {
-        this.id = id; // NOTE - id is not used anywhere at the moment
+        Validate.notNull(name);
+        Validate.notNull(id);
+        this.id = id;
         this.name = name;
-
     }
 
     @Override

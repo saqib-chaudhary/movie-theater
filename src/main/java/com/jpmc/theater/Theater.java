@@ -1,74 +1,110 @@
 package com.jpmc.theater;
 
+import com.google.gson.Gson;
+import com.jpmc.theater.repository.DefaultMovieScheduleProvider;
+import com.jpmc.theater.repository.MovieScheduleProvider;
+import com.jpmc.theater.utils.DefaultLocalDateProvider;
+import com.jpmc.theater.utils.LocalDateProvider;
+import org.apache.commons.lang3.Validate;
+
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.List;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class Theater {
 
-    LocalDateProvider provider;
+    private LocalDateProvider localDateProvider;
     private List<Showing> schedule;
 
-    public Theater(LocalDateProvider provider) {
-        this.provider = provider;
-
-        Movie spiderMan = new Movie("Spider-Man: No Way Home", Duration.ofMinutes(90), 12.5, 1);
-        Movie turningRed = new Movie("Turning Red", Duration.ofMinutes(85), 11, 0);
-        Movie theBatMan = new Movie("The Batman", Duration.ofMinutes(95), 9, 0);
-        schedule = List.of(
-            new Showing(turningRed, 1, LocalDateTime.of(provider.currentDate(), LocalTime.of(9, 0))),
-            new Showing(spiderMan, 2, LocalDateTime.of(provider.currentDate(), LocalTime.of(11, 0))),
-            new Showing(theBatMan, 3, LocalDateTime.of(provider.currentDate(), LocalTime.of(12, 50))),
-            new Showing(turningRed, 4, LocalDateTime.of(provider.currentDate(), LocalTime.of(14, 30))),
-            new Showing(spiderMan, 5, LocalDateTime.of(provider.currentDate(), LocalTime.of(16, 10))),
-            new Showing(theBatMan, 6, LocalDateTime.of(provider.currentDate(), LocalTime.of(17, 50))),
-            new Showing(turningRed, 7, LocalDateTime.of(provider.currentDate(), LocalTime.of(19, 30))),
-            new Showing(spiderMan, 8, LocalDateTime.of(provider.currentDate(), LocalTime.of(21, 10))),
-            new Showing(theBatMan, 9, LocalDateTime.of(provider.currentDate(), LocalTime.of(23, 0)))
-        );
+    public Theater(MovieScheduleProvider movieScheduleProvider, LocalDateProvider localDateProvider) {
+        this.localDateProvider = localDateProvider;
+        schedule = movieScheduleProvider.getMovieShowings();
     }
 
     public Reservation reserve(Customer customer, int sequence, int howManyTickets) {
-        Showing showing;
-        try {
-            showing = schedule.get(sequence - 1);
-        } catch (RuntimeException ex) {
-            ex.printStackTrace();
-            throw new IllegalStateException("not able to find any showing for given sequence " + sequence);
-        }
+        int index = sequence - 1;
+        Validate.isTrue(index >= 0 && index < schedule.size() - 1, "not able to find any showing for given sequence " + sequence);
+        Showing showing = schedule.get(index);
         return new Reservation(customer, showing, howManyTickets);
     }
 
-    public void printSchedule() {
-        System.out.println(provider.currentDate());
-        System.out.println("===================================================");
-        schedule.forEach(s ->
-                System.out.println(s.getSequenceOfTheDay() + ": " + s.getStartTime() + " " + s.getMovie().getTitle() + " " + humanReadableFormat(s.getMovie().getRunningTime()) + " $" + s.getMovieFee())
-        );
-        System.out.println("===================================================");
+    // kept for backward compatibility
+    public void printSchedule(){
+        System.out.println(scheduleInFormat(MovieListingFormat.TEXT));
     }
 
-    public String humanReadableFormat(Duration duration) {
+    public String scheduleInFormat(MovieListingFormat format) {
+        if (format == MovieListingFormat.TEXT) {
+            return scheduleTextFormat();
+        } else  if (format == MovieListingFormat.JSON){
+            return scheduleJsonFormat();
+        } else{
+            throw new IllegalArgumentException("Unimplemented  display format");
+        }
+
+    }
+
+    public String scheduleTextFormat() {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append(localDateProvider.currentDate()).append("\n");
+        buffer.append("===================================================").append("\n");
+        schedule.forEach(s ->
+                buffer.append(s.getSequenceOfTheDay() + ": " + s.getStartTime() + " " + s.getMovie().getTitle() + " " + humanReadableFormat(s.getMovie().getRunningTime()) + " $" + s.getMovieFee()).append("\n")
+        );
+        buffer.append("===================================================").append("\n");
+        return buffer.toString();
+    }
+
+    public String scheduleJsonFormat() {
+        Map<String, Object> jsonMap = new HashMap<>();
+        jsonMap.put("date", formatDate(localDateProvider.currentDate()));
+        jsonMap.put("schedules",
+        schedule.stream()
+                .map(s -> {
+                    Map<String, Object> movieMap = new HashMap<>();
+                    movieMap.put("sequenceOfDay", s.getSequenceOfTheDay());
+                    movieMap.put("startTime", formatDateTime(s.getStartTime()));
+                    movieMap.put("title", s.getMovie().getTitle());
+                    movieMap.put("runningTime", humanReadableFormat(s.getMovie().getRunningTime()));
+                    movieMap.put("runningTime"," $" + s.getMovieFee());
+                    return movieMap;
+                }).collect(Collectors.toList())
+        );
+        Gson gson = new Gson();
+        return gson.toJson(jsonMap);
+    }
+
+
+    private String humanReadableFormat(Duration duration) {
         long hour = duration.toHours();
         long remainingMin = duration.toMinutes() - TimeUnit.HOURS.toMinutes(duration.toHours());
-
         return String.format("(%s hour%s %s minute%s)", hour, handlePlural(hour), remainingMin, handlePlural(remainingMin));
     }
 
     // (s) postfix should be added to handle plural correctly
     private String handlePlural(long value) {
-        if (value == 1) {
-            return "";
-        }
-        else {
-            return "s";
-        }
+        return value == 1 ? "" : "s";
+    }
+
+    private String formatDateTime(LocalDateTime ll){
+        return DateTimeFormatter.ISO_DATE_TIME.format(ll);
+    }
+
+    private String formatDate(LocalDate ll){
+        return DateTimeFormatter.ISO_DATE.format(ll);
+    }
+
+    public enum MovieListingFormat{
+        TEXT, JSON
     }
 
     public static void main(String[] args) {
-        Theater theater = new Theater(LocalDateProvider.singleton());
+        DefaultLocalDateProvider dateProvider = DefaultLocalDateProvider.singleton();
+        Theater theater = new Theater(new DefaultMovieScheduleProvider(dateProvider), dateProvider);
         theater.printSchedule();
     }
 }
