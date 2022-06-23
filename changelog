@@ -1,0 +1,10 @@
+## [0.0.1] - 2022-22-06
+### Changed
+- added apache common-lang for some common validation. added not null checks
+- introduced LocalDateProvider and MovieScheduleProvider as interfaces
+- made DefaultLocalDateProvider's initialization thread safe
+- change most money handling attributes to BigDecimal instead of double
+- introduced new MovieType enum to categorize movie as special. This can be extended later to new rules
+- moved logic of discount calculation to "Showing" from "Movie". This kind of removes a circular dependency and makes domain better
+- new discount rules as per requirements
+- new display json format as per requirements

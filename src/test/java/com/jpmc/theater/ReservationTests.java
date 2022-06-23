@@ -2,6 +2,7 @@ package com.jpmc.theater;
 
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -13,10 +14,10 @@ public class ReservationTests {
     void totalFee() {
         var customer = new Customer("John Doe", "unused-id");
         var showing = new Showing(
-                new Movie("Spider-Man: No Way Home", Duration.ofMinutes(90), 12.5, 1),
+                new Movie("Spider-Man: No Way Home", Duration.ofMinutes(90), 12.5, MovieType.SPECIAL),
                 1,
                 LocalDateTime.now()
         );
-        assertTrue(new Reservation(customer, showing, 3).totalFee() == 37.5);
+        assertTrue(new Reservation(customer, showing, 3).totalFee().compareTo(new BigDecimal("37.5"))==0);
     }
 }
